@@ -68,7 +68,7 @@ Deno.serve(async (req: Request) => {
       try {
         const shopDomain = order.shopify_stores.shop_domain;
         const accessToken = order.shopify_stores.access_token;
-        const apiVersion = order.shopify_stores.api_version || "2025-10";
+        const apiVersion = order.shopify_stores.api_version || "2024-01";
 
         // First, check if order has a fulfillment
         let fulfillmentId = shopifyFulfillmentId;
@@ -103,6 +103,24 @@ Deno.serve(async (req: Request) => {
 
         // If we have a fulfillment, update it with tracking
         if (fulfillmentId) {
+          const trackingInfo: { number: string; company: string; url?: string } = {
+            number: trackingNumber,
+            company: trackingCompany,
+          };
+
+          if (trackingUrl) {
+            trackingInfo.url = trackingUrl;
+          }
+
+          const requestBody = {
+            fulfillment: {
+              notify_customer: notifyCustomer,
+              tracking_info: trackingInfo,
+            },
+          };
+
+          console.log("Updating fulfillment:", fulfillmentId, "with body:", JSON.stringify(requestBody));
+
           const updateResponse = await fetch(
             `https://${shopDomain}/admin/api/${apiVersion}/fulfillments/${fulfillmentId}/update_tracking.json`,
             {
@@ -110,7 +128,6 @@ Deno.serve(async (req: Request) => {
               headers: {
                 "X-Shopify-Access-Token": accessToken,
                 "Content-Type": "application/json",
-                "Accept": "application/json",
               },
               body: JSON.stringify({
                 fulfillment: {
@@ -130,6 +147,7 @@ Deno.serve(async (req: Request) => {
           } else {
             try {
               const errorText = await updateResponse.text();
+              console.log("Error response body:", errorText);
               if (errorText && errorText.trim()) {
                 try {
                   shopifyError = JSON.parse(errorText);
@@ -145,37 +163,14 @@ Deno.serve(async (req: Request) => {
             console.error("Shopify update error:", shopifyError);
           }
         } else {
-          // No fulfillment exists yet, create via fulfillmentCreateV2 style
-          // 1) Get fulfillment orders for the order
-          const foResp = await fetch(
-            `https://${shopDomain}/admin/api/${apiVersion}/orders/${order.shopify_order_id}/fulfillment_orders.json`,
-            {
-              headers: {
-                "X-Shopify-Access-Token": accessToken,
-                "Content-Type": "application/json",
-                "Accept": "application/json",
-              },
-            }
-          );
+          // No fulfillment exists yet, we need to create one
+          // Get line items for the order
+          const { data: lineItems } = await supabase
+            .from("order_items")
+            .select("shopify_line_item_id, quantity")
+            .eq("order_id", orderId);
 
-          let fulfillmentOrders: Array<{ id: number }>|null = null;
-          if (foResp.ok) {
-            try {
-              const foText = await foResp.text();
-              if (foText && foText.trim()) {
-                const foData = JSON.parse(foText);
-                fulfillmentOrders = foData.fulfillment_orders || [];
-              }
-            } catch (parseError) {
-              console.error("Error parsing fulfillment orders:", parseError);
-            }
-          }
-
-          if (fulfillmentOrders && fulfillmentOrders.length > 0) {
-            const line_items_by_fulfillment_order = fulfillmentOrders.map((fo: { id: number }) => ({
-              fulfillment_order_id: fo.id,
-            }));
-
+          if (lineItems && lineItems.length > 0) {
             const createResponse = await fetch(
               `https://${shopDomain}/admin/api/${apiVersion}/fulfillments.json`,
               {
@@ -191,6 +186,7 @@ Deno.serve(async (req: Request) => {
                     notify_customer: notifyCustomer,
                     tracking_info: {
                       number: trackingNumber,
+                      company: trackingCompany,
                       url: trackingUrl || `https://track.example.com/${trackingNumber}`,
                     },
                   },
