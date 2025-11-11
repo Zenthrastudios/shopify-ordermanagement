@@ -68,7 +68,7 @@ Deno.serve(async (req: Request) => {
       try {
         const shopDomain = order.shopify_stores.shop_domain;
         const accessToken = order.shopify_stores.access_token;
-        const apiVersion = order.shopify_stores.api_version || "2024-10";
+        const apiVersion = order.shopify_stores.api_version || "2025-01";
 
         // First, check if order has a fulfillment
         let fulfillmentId = shopifyFulfillmentId;
@@ -103,14 +103,19 @@ Deno.serve(async (req: Request) => {
 
         // If we have a fulfillment, update it with tracking
         if (fulfillmentId) {
+          const trackingInfo: { number: string; company: string; url?: string } = {
+            number: trackingNumber,
+            company: trackingCompany,
+          };
+
+          if (trackingUrl) {
+            trackingInfo.url = trackingUrl;
+          }
+
           const requestBody = {
             fulfillment: {
               notify_customer: notifyCustomer,
-              tracking_info: {
-                number: trackingNumber,
-                company: trackingCompany,
-                url: trackingUrl,
-              },
+              tracking_info: trackingInfo,
             },
           };
 
@@ -160,6 +165,15 @@ Deno.serve(async (req: Request) => {
             .eq("order_id", orderId);
 
           if (lineItems && lineItems.length > 0) {
+            const trackingInfo: { number: string; company: string; url?: string } = {
+              number: trackingNumber,
+              company: trackingCompany,
+            };
+
+            if (trackingUrl) {
+              trackingInfo.url = trackingUrl;
+            }
+
             const createResponse = await fetch(
               `https://${shopDomain}/admin/api/${apiVersion}/orders/${order.shopify_order_id}/fulfillments.json`,
               {
@@ -176,11 +190,7 @@ Deno.serve(async (req: Request) => {
                       quantity: item.quantity,
                     })),
                     notify_customer: notifyCustomer,
-                    tracking_info: {
-                      number: trackingNumber,
-                      company: trackingCompany,
-                      url: trackingUrl,
-                    },
+                    tracking_info: trackingInfo,
                   },
                 }),
               }
