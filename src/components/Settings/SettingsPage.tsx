@@ -82,26 +82,29 @@ export default function SettingsPage() {
     try {
       console.log('Loading tracking partners at:', new Date().toISOString(), 'forceRefresh:', forceRefresh);
 
-      // Clear state first to force re-render
       if (forceRefresh) {
         setTrackingPartners([]);
       }
 
-      const { data, error } = await supabase
-        .from('tracking_partners')
-        .select('*')
-        .order('display_order', { ascending: true });
+      const edgeUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/tracking-partners`;
+      const resp = await fetch(edgeUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ action: 'list' }),
+      });
 
-      if (error) {
-        console.error('Error loading tracking partners:', error);
-        throw error;
+      if (!resp.ok) {
+        const err = await resp.text();
+        throw new Error(`Failed to load tracking partners: ${err}`);
       }
 
-      console.log('Loaded tracking partners from DB:', data);
-
-      // Set the fresh data
-      setTrackingPartners(data || []);
-
+      const json = await resp.json();
+      const data = json?.data || [];
+      console.log('Loaded tracking partners from Edge:', data);
+      setTrackingPartners(data);
       return data;
     } catch (error) {
       console.error('Error loading tracking partners:', error);
@@ -112,58 +115,19 @@ export default function SettingsPage() {
   const handleSavePartner = async (partner: Partial<TrackingPartner>) => {
     try {
       console.log('Saving partner:', partner);
+      const edgeUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/tracking-partners`;
+      const resp = await fetch(edgeUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ action: 'save', payload: partner }),
+      });
 
-      // If setting as default, clear all other defaults first
-      if (partner.is_default) {
-        console.log('Clearing other defaults...');
-        const { data: clearData, error: clearError } = await supabase
-          .from('tracking_partners')
-          .update({ is_default: false })
-          .neq('id', partner.id || '00000000-0000-0000-0000-000000000000')
-          .select();
-
-        console.log('Clear result:', { clearData, clearError });
-
-        if (clearError) {
-          console.error('Error clearing defaults:', clearError);
-          throw clearError;
-        }
-      }
-
-      if (partner.id) {
-        console.log('Updating existing partner...');
-        const { data: updateData, error } = await supabase
-          .from('tracking_partners')
-          .update({
-            name: partner.name,
-            tracking_url_template: partner.tracking_url_template,
-            is_active: partner.is_active,
-            is_default: partner.is_default,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', partner.id)
-          .select();
-
-        console.log('Update result:', { updateData, error });
-
-        if (error) throw error;
-      } else {
-        console.log('Inserting new partner...');
-        const maxOrder = Math.max(...trackingPartners.map(p => p.display_order), 0);
-        const { data: insertData, error } = await supabase
-          .from('tracking_partners')
-          .insert({
-            name: partner.name,
-            tracking_url_template: partner.tracking_url_template,
-            is_active: partner.is_active ?? true,
-            is_default: partner.is_default ?? false,
-            display_order: maxOrder + 1,
-          })
-          .select();
-
-        console.log('Insert result:', { insertData, error });
-
-        if (error) throw error;
+      if (!resp.ok) {
+        const err = await resp.text();
+        throw new Error(`Failed to save partner: ${err}`);
       }
 
       setShowPartnerForm(false);
@@ -184,12 +148,20 @@ export default function SettingsPage() {
     if (!confirm('Delete this tracking partner?')) return;
 
     try {
-      const { error } = await supabase
-        .from('tracking_partners')
-        .delete()
-        .eq('id', id);
+      const edgeUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/tracking-partners`;
+      const resp = await fetch(edgeUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ action: 'delete', payload: { id } }),
+      });
 
-      if (error) throw error;
+      if (!resp.ok) {
+        const err = await resp.text();
+        throw new Error(`Failed to delete partner: ${err}`);
+      }
       await loadTrackingPartners(true);
       alert('Tracking partner deleted successfully!');
     } catch (error) {
@@ -201,33 +173,19 @@ export default function SettingsPage() {
   const handleToggleDefault = async (id: string) => {
     try {
       console.log('Setting default for partner ID:', id);
+      const edgeUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/tracking-partners`;
+      const resp = await fetch(edgeUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ action: 'setDefault', payload: { id } }),
+      });
 
-      // First, clear all defaults
-      const { data: clearData, error: clearError } = await supabase
-        .from('tracking_partners')
-        .update({ is_default: false })
-        .neq('id', id)
-        .select();
-
-      console.log('Clear defaults result:', { clearData, clearError });
-
-      if (clearError) {
-        console.error('Error clearing defaults:', clearError);
-        throw clearError;
-      }
-
-      // Then set the new default
-      const { data: setData, error: setError } = await supabase
-        .from('tracking_partners')
-        .update({ is_default: true })
-        .eq('id', id)
-        .select();
-
-      console.log('Set default result:', { setData, setError });
-
-      if (setError) {
-        console.error('Error setting default:', setError);
-        throw setError;
+      if (!resp.ok) {
+        const err = await resp.text();
+        throw new Error(`Failed to set default: ${err}`);
       }
 
       // Reload the list to reflect changes

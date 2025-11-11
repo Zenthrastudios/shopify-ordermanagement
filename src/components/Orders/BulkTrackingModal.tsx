@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
 import { X, Truck, Save, Check, AlertCircle, Scan, Camera, Keyboard } from 'lucide-react';
-import { bulkAddTracking } from '../../services/ordersService';
 import { supabase } from '../../lib/supabase';
 import type { OrderWithItems } from '../../types';
 import MobileBarcodeScanner from './MobileBarcodeScanner';
@@ -40,6 +39,14 @@ export default function BulkTrackingModal({ orderIds, orders, onClose, onComplet
   const [scanBuffer, setScanBuffer] = useState('');
   const scanInputRef = useRef<HTMLInputElement>(null);
   const scanBufferTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const getTrackingUrl = (company: string, number: string) => {
+    const partner = trackingPartners.find(p => p.name === company);
+    if (partner && partner.tracking_url_template) {
+      return partner.tracking_url_template.replace(/\{tracking_number\}/g, number);
+    }
+    return `https://track.example.com/${number}`;
+  };
 
   useEffect(() => {
     loadTrackingPartners();
@@ -201,37 +208,50 @@ export default function BulkTrackingModal({ orderIds, orders, onClose, onComplet
     setLoading(true);
 
     try {
-      const trackingData = entriesToUpdate.map(entry => ({
-        tracking_number: entry.trackingNumber.trim(),
-        tracking_company: entry.trackingCompany,
-      }));
+      const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/shopify-fulfillment`;
+      let successCount = 0;
 
-      await bulkAddTracking(
-        entriesToUpdate.map(e => e.orderId),
-        trackingData
-      );
+      for (const entry of entriesToUpdate) {
+        try {
+          const finalTrackingUrl = getTrackingUrl(entry.trackingCompany, entry.trackingNumber.trim());
+          const response = await fetch(apiUrl, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              orderId: entry.orderId,
+              trackingNumber: entry.trackingNumber.trim(),
+              trackingCompany: entry.trackingCompany,
+              trackingUrl: finalTrackingUrl,
+              notifyCustomer: true,
+            }),
+          });
 
-      setTrackingEntries(prev =>
-        prev.map(entry =>
-          entriesToUpdate.find(e => e.orderId === entry.orderId)
-            ? { ...entry, status: 'success' }
-            : entry
-        )
-      );
+          const result = await response.json();
 
-      alert(`Successfully added tracking to ${entriesToUpdate.length} order(s)`);
+          if (!response.ok || !result.success) {
+            throw new Error(result?.error || result?.shopifyError?.message || 'Failed to add tracking');
+          }
+
+          successCount += 1;
+          setTrackingEntries(prev => prev.map(e => e.orderId === entry.orderId ? { ...e, status: 'success' } : e));
+        } catch (err: unknown) {
+          let msg = 'Failed to add tracking';
+          if (err && typeof err === 'object' && 'message' in err) {
+            const m = (err as Record<string, unknown>).message;
+            msg = typeof m === 'string' ? m : JSON.stringify(m);
+          }
+          setTrackingEntries(prev => prev.map(e => e.orderId === entry.orderId ? { ...e, status: 'error', error: msg } : e));
+        }
+      }
+
+      alert(`Successfully processed ${successCount} of ${entriesToUpdate.length} order(s)`);
       onComplete();
     } catch (error) {
       console.error('Error adding tracking numbers:', error);
       alert('Failed to add tracking numbers');
-
-      setTrackingEntries(prev =>
-        prev.map(entry =>
-          entriesToUpdate.find(e => e.orderId === entry.orderId)
-            ? { ...entry, status: 'error', error: 'Failed to add tracking' }
-            : entry
-        )
-      );
     } finally {
       setLoading(false);
     }

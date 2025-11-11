@@ -34,6 +34,7 @@ Deno.serve(async (req: Request) => {
     const requestHeaders = {
       'X-Shopify-Access-Token': access_token,
       'Content-Type': 'application/json',
+      'Accept': 'application/json',
     };
 
     const shopifyResponse = await fetch(url, {
