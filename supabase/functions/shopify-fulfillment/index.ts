@@ -68,7 +68,7 @@ Deno.serve(async (req: Request) => {
       try {
         const shopDomain = order.shopify_stores.shop_domain;
         const accessToken = order.shopify_stores.access_token;
-        const apiVersion = order.shopify_stores.api_version || "2024-01";
+        const apiVersion = order.shopify_stores.api_version || "2024-10";
 
         // First, check if order has a fulfillment
         let fulfillmentId = shopifyFulfillmentId;
@@ -103,9 +103,9 @@ Deno.serve(async (req: Request) => {
         // If we have a fulfillment, update it with tracking
         if (fulfillmentId) {
           const updateResponse = await fetch(
-            `https://${shopDomain}/admin/api/${apiVersion}/fulfillments/${fulfillmentId}.json`,
+            `https://${shopDomain}/admin/api/${apiVersion}/fulfillments/${fulfillmentId}/update_tracking.json`,
             {
-              method: "PUT",
+              method: "POST",
               headers: {
                 "X-Shopify-Access-Token": accessToken,
                 "Content-Type": "application/json",
