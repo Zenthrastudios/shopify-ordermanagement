@@ -81,6 +81,7 @@ Deno.serve(async (req: Request) => {
               headers: {
                 "X-Shopify-Access-Token": accessToken,
                 "Content-Type": "application/json",
+                "Accept": "application/json",
               },
             }
           );
@@ -102,6 +103,19 @@ Deno.serve(async (req: Request) => {
 
         // If we have a fulfillment, update it with tracking
         if (fulfillmentId) {
+          const requestBody = {
+            fulfillment: {
+              notify_customer: notifyCustomer,
+              tracking_info: {
+                number: trackingNumber,
+                company: trackingCompany,
+                url: trackingUrl,
+              },
+            },
+          };
+
+          console.log("Updating fulfillment:", fulfillmentId, "with body:", JSON.stringify(requestBody));
+
           const updateResponse = await fetch(
             `https://${shopDomain}/admin/api/${apiVersion}/fulfillments/${fulfillmentId}/update_tracking.json`,
             {
@@ -109,25 +123,20 @@ Deno.serve(async (req: Request) => {
               headers: {
                 "X-Shopify-Access-Token": accessToken,
                 "Content-Type": "application/json",
+                "Accept": "application/json",
               },
-              body: JSON.stringify({
-                fulfillment: {
-                  notify_customer: notifyCustomer,
-                  tracking_info: {
-                    number: trackingNumber,
-                    company: trackingCompany,
-                    url: trackingUrl || `https://track.example.com/${trackingNumber}`,
-                  },
-                },
-              }),
+              body: JSON.stringify(requestBody),
             }
           );
+
+          console.log("Update response status:", updateResponse.status, updateResponse.statusText);
 
           if (updateResponse.ok) {
             shopifySuccess = true;
           } else {
             try {
               const errorText = await updateResponse.text();
+              console.log("Error response body:", errorText);
               if (errorText && errorText.trim()) {
                 try {
                   shopifyError = JSON.parse(errorText);
@@ -158,6 +167,7 @@ Deno.serve(async (req: Request) => {
                 headers: {
                   "X-Shopify-Access-Token": accessToken,
                   "Content-Type": "application/json",
+                  "Accept": "application/json",
                 },
                 body: JSON.stringify({
                   fulfillment: {
@@ -169,7 +179,7 @@ Deno.serve(async (req: Request) => {
                     tracking_info: {
                       number: trackingNumber,
                       company: trackingCompany,
-                      url: trackingUrl || `https://track.example.com/${trackingNumber}`,
+                      url: trackingUrl,
                     },
                   },
                 }),
