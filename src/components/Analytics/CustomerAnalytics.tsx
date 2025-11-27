@@ -10,7 +10,7 @@ export function CustomerAnalytics() {
   const [allCustomers, setAllCustomers] = useState<TopCustomer[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'top' | 'all'>('top');
-  const [selectedCustomer, setSelectedCustomer] = useState<string | null>(null);
+  const [selectedCustomer, setSelectedCustomer] = useState<{ email: string; name: string } | null>(null);
 
   useEffect(() => {
     loadData();
@@ -37,7 +37,7 @@ export function CustomerAnalytics() {
   };
 
   if (selectedCustomer) {
-    return <CustomerDetail email={selectedCustomer} onBack={() => setSelectedCustomer(null)} />;
+    return <CustomerDetail email={selectedCustomer.email} customerName={selectedCustomer.name} onBack={() => setSelectedCustomer(null)} />;
   }
 
   if (loading) {
@@ -135,8 +135,8 @@ export function CustomerAnalytics() {
             <tbody className="divide-y divide-gray-200">
               {(viewMode === 'top' ? topCustomers : allCustomers).map((customer, index) => (
                 <tr
-                  key={customer.email}
-                  onClick={() => setSelectedCustomer(customer.email)}
+                  key={`${customer.email}-${customer.name}`}
+                  onClick={() => setSelectedCustomer({ email: customer.email, name: customer.name })}
                   className="hover:bg-blue-50 cursor-pointer transition-colors"
                 >
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{index + 1}</td>

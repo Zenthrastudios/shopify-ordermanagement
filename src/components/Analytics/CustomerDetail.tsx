@@ -5,6 +5,7 @@ import { format, parseISO, differenceInDays } from 'date-fns';
 
 interface CustomerDetailProps {
   email: string;
+  customerName: string;
   onBack: () => void;
 }
 
@@ -29,14 +30,14 @@ interface CustomerStats {
   averageDaysBetweenOrders: number;
 }
 
-export function CustomerDetail({ email, onBack }: CustomerDetailProps) {
+export function CustomerDetail({ email, customerName, onBack }: CustomerDetailProps) {
   const [orders, setOrders] = useState<CustomerOrder[]>([]);
   const [stats, setStats] = useState<CustomerStats | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     loadCustomerData();
-  }, [email]);
+  }, [email, customerName]);
 
   const loadCustomerData = async () => {
     setLoading(true);
@@ -45,6 +46,7 @@ export function CustomerDetail({ email, onBack }: CustomerDetailProps) {
         .from('orders')
         .select('id, order_number, total_price, created_at, financial_status, fulfillment_status, customer_name')
         .eq('email', email)
+        .eq('customer_name', customerName)
         .order('created_at', { ascending: false });
 
       if (orderData && orderData.length > 0) {
