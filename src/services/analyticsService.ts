@@ -93,7 +93,7 @@ export const analyticsService = {
 
     const { data: orders } = await supabase
       .from('orders')
-      .select('total_price, created_at, customer_email, financial_status, fulfillment_status')
+      .select('id, total_price, created_at, email, financial_status, fulfillment_status')
       .gte('created_at', startOfDay(startDate).toISOString())
       .lte('created_at', endOfDay(endDate).toISOString());
 
@@ -104,7 +104,7 @@ export const analyticsService = {
 
     const totalRevenue = orders?.reduce((sum, o) => sum + parseFloat(o.total_price || '0'), 0) || 0;
     const totalOrders = orders?.length || 0;
-    const uniqueCustomers = new Set(orders?.map(o => o.customer_email)).size;
+    const uniqueCustomers = new Set(orders?.map(o => o.email)).size;
     const totalProductsSold = orderItems?.reduce((sum, item) => sum + item.quantity, 0) || 0;
 
     const refundAmount = orders?.filter(o => o.financial_status === 'refunded')
@@ -116,8 +116,8 @@ export const analyticsService = {
 
     const customerOrderCounts = new Map<string, number>();
     orders?.forEach(order => {
-      const count = customerOrderCounts.get(order.customer_email) || 0;
-      customerOrderCounts.set(order.customer_email, count + 1);
+      const count = customerOrderCounts.get(order.email) || 0;
+      customerOrderCounts.set(order.email, count + 1);
     });
 
     const firstTimeCustomers = Array.from(customerOrderCounts.values()).filter(count => count === 1).length;
@@ -148,14 +148,14 @@ export const analyticsService = {
 
     const { data: allOrders } = await supabase
       .from('orders')
-      .select('customer_email, created_at')
+      .select('email, created_at')
       .order('created_at', { ascending: false });
 
     const customerFirstOrder = new Map<string, Date>();
     const customerLastOrder = new Map<string, Date>();
 
     allOrders?.forEach(order => {
-      const email = order.customer_email;
+      const email = order.email;
       const orderDate = parseISO(order.created_at);
 
       if (!customerFirstOrder.has(email) || orderDate < customerFirstOrder.get(email)!) {
@@ -190,7 +190,7 @@ export const analyticsService = {
   async getTopCustomers(limit = 50): Promise<TopCustomer[]> {
     const { data: orders } = await supabase
       .from('orders')
-      .select('customer_email, customer_name, total_price, created_at')
+      .select('email, customer_name, total_price, created_at')
       .order('created_at', { ascending: false });
 
     const customerData = new Map<string, {
@@ -202,7 +202,7 @@ export const analyticsService = {
     }>();
 
     orders?.forEach(order => {
-      const email = order.customer_email;
+      const email = order.email;
       const existing = customerData.get(email);
       const orderDate = parseISO(order.created_at);
       const amount = parseFloat(order.total_price || '0');
@@ -240,7 +240,7 @@ export const analyticsService = {
   async calculateRFMScores(): Promise<RFMScore[]> {
     const { data: orders } = await supabase
       .from('orders')
-      .select('customer_email, customer_name, total_price, created_at')
+      .select('email, customer_name, total_price, created_at')
       .order('created_at', { ascending: false });
 
     if (!orders || orders.length === 0) return [];
@@ -253,7 +253,7 @@ export const analyticsService = {
     }>();
 
     orders.forEach(order => {
-      const email = order.customer_email;
+      const email = order.email;
       const existing = customerData.get(email);
       const orderDate = parseISO(order.created_at);
       const amount = parseFloat(order.total_price || '0');
@@ -464,14 +464,14 @@ export const analyticsService = {
 
     const { data: orders } = await supabase
       .from('orders')
-      .select('created_at, total_price, customer_email')
+      .select('created_at, total_price, email')
       .gte('created_at', startOfDay(startDate).toISOString())
       .lte('created_at', endOfDay(endDate).toISOString())
       .order('created_at', { ascending: true });
 
     const customerFirstOrders = new Map<string, Date>();
     orders?.forEach(order => {
-      const email = order.customer_email;
+      const email = order.email;
       const date = parseISO(order.created_at);
       if (!customerFirstOrders.has(email) || date < customerFirstOrders.get(email)!) {
         customerFirstOrders.set(email, date);
@@ -492,7 +492,7 @@ export const analyticsService = {
       existing.orders += 1;
       existing.revenue += parseFloat(order.total_price || '0');
 
-      const firstOrderDate = customerFirstOrders.get(order.customer_email);
+      const firstOrderDate = customerFirstOrders.get(order.email);
       const orderDate = parseISO(order.created_at);
       if (firstOrderDate && format(firstOrderDate, 'yyyy-MM-dd') === dateKey) {
         existing.newCustomers += 1;
