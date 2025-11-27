@@ -3,6 +3,7 @@ import MainLayout from './components/Layout/MainLayout';
 import OrdersList from './components/Orders/OrdersList';
 import OrderDetail from './components/Orders/OrderDetail';
 import SettingsPage from './components/Settings/SettingsPage';
+import { AnalyticsDashboard } from './components/Analytics/AnalyticsDashboard';
 
 function App() {
   const [currentView, setCurrentView] = useState('orders');
@@ -19,6 +20,10 @@ function App() {
   const renderContent = () => {
     if (currentView === 'settings') {
       return <SettingsPage />;
+    }
+
+    if (currentView === 'analytics') {
+      return <AnalyticsDashboard />;
     }
 
     if (currentView === 'orders') {
