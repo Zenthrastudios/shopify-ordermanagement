@@ -4,6 +4,7 @@ import OrdersList from './components/Orders/OrdersList';
 import OrderDetail from './components/Orders/OrderDetail';
 import SettingsPage from './components/Settings/SettingsPage';
 import { AnalyticsDashboard } from './components/Analytics/AnalyticsDashboard';
+import { ProductsPage } from './components/Products/ProductsPage';
 
 function App() {
   const [currentView, setCurrentView] = useState('orders');
@@ -24,6 +25,10 @@ function App() {
 
     if (currentView === 'analytics') {
       return <AnalyticsDashboard />;
+    }
+
+    if (currentView === 'products') {
+      return <ProductsPage />;
     }
 
     if (currentView === 'orders') {
