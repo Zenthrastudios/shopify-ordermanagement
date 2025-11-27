@@ -2,11 +2,15 @@ import { useEffect, useState } from 'react';
 import { Users, TrendingUp, AlertCircle } from 'lucide-react';
 import { analyticsService, CustomerSummary, TopCustomer } from '../../services/analyticsService';
 import { subDays } from 'date-fns';
+import { CustomerDetail } from './CustomerDetail';
 
 export function CustomerAnalytics() {
   const [summary, setSummary] = useState<CustomerSummary | null>(null);
   const [topCustomers, setTopCustomers] = useState<TopCustomer[]>([]);
+  const [allCustomers, setAllCustomers] = useState<TopCustomer[]>([]);
   const [loading, setLoading] = useState(true);
+  const [viewMode, setViewMode] = useState<'top' | 'all'>('top');
+  const [selectedCustomer, setSelectedCustomer] = useState<string | null>(null);
 
   useEffect(() => {
     loadData();
@@ -17,18 +21,24 @@ export function CustomerAnalytics() {
     try {
       const endDate = new Date();
       const startDate = subDays(endDate, 30);
-      const [summaryData, customersData] = await Promise.all([
+      const [summaryData, topCustomersData, allCustomersData] = await Promise.all([
         analyticsService.getCustomerSummary({ startDate, endDate }),
         analyticsService.getTopCustomers(20),
+        analyticsService.getTopCustomers(1000),
       ]);
       setSummary(summaryData);
-      setTopCustomers(customersData);
+      setTopCustomers(topCustomersData);
+      setAllCustomers(allCustomersData);
     } catch (error) {
       console.error('Error loading customer analytics:', error);
     } finally {
       setLoading(false);
     }
   };
+
+  if (selectedCustomer) {
+    return <CustomerDetail email={selectedCustomer} onBack={() => setSelectedCustomer(null)} />;
+  }
 
   if (loading) {
     return <div className="bg-white rounded-lg shadow p-6"><div className="animate-pulse h-64 bg-gray-100 rounded" /></div>;
@@ -83,8 +93,32 @@ export function CustomerAnalytics() {
       </div>
 
       <div className="bg-white rounded-lg shadow">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900">Top Customers by Spend</h3>
+        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-gray-900">
+            {viewMode === 'top' ? 'Top 20 Customers by Spend' : `All Customers (${allCustomers.length})`}
+          </h3>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setViewMode('top')}
+              className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                viewMode === 'top'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              Top 20
+            </button>
+            <button
+              onClick={() => setViewMode('all')}
+              className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                viewMode === 'all'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              All Customers
+            </button>
+          </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -99,11 +133,15 @@ export function CustomerAnalytics() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
-              {topCustomers.map((customer, index) => (
-                <tr key={customer.email} className="hover:bg-gray-50">
+              {(viewMode === 'top' ? topCustomers : allCustomers).map((customer, index) => (
+                <tr
+                  key={customer.email}
+                  onClick={() => setSelectedCustomer(customer.email)}
+                  className="hover:bg-blue-50 cursor-pointer transition-colors"
+                >
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{index + 1}</td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-medium text-gray-900">{customer.name}</div>
+                    <div className="text-sm font-medium text-blue-600 hover:text-blue-800">{customer.name}</div>
                     <div className="text-sm text-gray-500">{customer.email}</div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-green-600">
