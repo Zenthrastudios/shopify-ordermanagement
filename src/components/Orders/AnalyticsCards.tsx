@@ -45,7 +45,7 @@ export default function AnalyticsCards() {
   const cards = [
     {
       title: 'Total Revenue',
-      value: `$${stats.totalRevenue.toFixed(2)}`,
+      value: `₹${stats.totalRevenue.toFixed(2)}`,
       icon: DollarSign,
       bgColor: 'bg-green-50',
       iconColor: 'text-green-600',

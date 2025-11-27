@@ -65,7 +65,7 @@ export function ProductAnalytics() {
             <div className="text-gray-500 text-sm font-medium">Total Revenue</div>
             <TrendingUp className="w-5 h-5 text-green-600" />
           </div>
-          <div className="text-3xl font-bold text-gray-900">${totalRevenue.toFixed(2)}</div>
+          <div className="text-3xl font-bold text-gray-900">₹{totalRevenue.toFixed(2)}</div>
         </div>
 
         <div className="bg-white rounded-lg shadow p-6">
@@ -133,9 +133,9 @@ export function ProductAnalytics() {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{product.sku}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{product.unitsSold}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-green-600">
-                      ${product.revenue.toFixed(2)}
+                      ₹{product.revenue.toFixed(2)}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${product.avgPrice.toFixed(2)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">₹{product.avgPrice.toFixed(2)}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{product.uniqueCustomers}</td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">

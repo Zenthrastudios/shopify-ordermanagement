@@ -147,7 +147,7 @@ export function RFMAnalysis() {
                     {score.frequencyCount} orders (Score: {score.frequencyScore})
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-green-600">
-                    ${score.monetaryValue.toFixed(2)} (Score: {score.monetaryScore})
+                    ₹{score.monetaryValue.toFixed(2)} (Score: {score.monetaryScore})
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{score.lastPurchaseDate}</td>
                 </tr>

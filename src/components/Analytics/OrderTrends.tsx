@@ -49,7 +49,7 @@ export function OrderTrends() {
         </div>
         <div className="bg-white rounded-lg shadow p-6">
           <div className="text-gray-500 text-sm font-medium mb-2">Total Revenue</div>
-          <div className="text-3xl font-bold text-gray-900">${totalRevenue.toFixed(2)}</div>
+          <div className="text-3xl font-bold text-gray-900">₹{totalRevenue.toFixed(2)}</div>
         </div>
         <div className="bg-white rounded-lg shadow p-6">
           <div className="text-gray-500 text-sm font-medium mb-2">Avg Daily Orders</div>
@@ -57,7 +57,7 @@ export function OrderTrends() {
         </div>
         <div className="bg-white rounded-lg shadow p-6">
           <div className="text-gray-500 text-sm font-medium mb-2">Avg Daily Revenue</div>
-          <div className="text-3xl font-bold text-gray-900">${avgDailyRevenue.toFixed(2)}</div>
+          <div className="text-3xl font-bold text-gray-900">₹{avgDailyRevenue.toFixed(2)}</div>
         </div>
       </div>
 

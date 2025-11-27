@@ -150,7 +150,7 @@ export function CustomerDetail({ email, onBack }: CustomerDetailProps) {
               <span className="text-sm text-gray-600">Lifetime Value</span>
               <DollarSign className="w-5 h-5 text-green-600" />
             </div>
-            <div className="text-2xl font-bold text-gray-900">${stats.totalSpent.toFixed(2)}</div>
+            <div className="text-2xl font-bold text-gray-900">₹{stats.totalSpent.toFixed(2)}</div>
           </div>
 
           <div className="bg-purple-50 rounded-lg p-4">
@@ -158,7 +158,7 @@ export function CustomerDetail({ email, onBack }: CustomerDetailProps) {
               <span className="text-sm text-gray-600">Avg Order Value</span>
               <TrendingUp className="w-5 h-5 text-purple-600" />
             </div>
-            <div className="text-2xl font-bold text-gray-900">${stats.averageOrderValue.toFixed(2)}</div>
+            <div className="text-2xl font-bold text-gray-900">₹{stats.averageOrderValue.toFixed(2)}</div>
           </div>
 
           <div className="bg-orange-50 rounded-lg p-4">
@@ -219,7 +219,7 @@ export function CustomerDetail({ email, onBack }: CustomerDetailProps) {
                         <div className="text-sm text-gray-500">{format(orderDate, 'MMM dd, yyyy HH:mm')}</div>
                       </div>
                       <div className="text-right">
-                        <div className="text-lg font-bold text-green-600">${parseFloat(order.total_price).toFixed(2)}</div>
+                        <div className="text-lg font-bold text-green-600">₹{parseFloat(order.total_price).toFixed(2)}</div>
                       </div>
                     </div>
 
@@ -260,7 +260,7 @@ export function CustomerDetail({ email, onBack }: CustomerDetailProps) {
                     {format(parseISO(order.created_at), 'MMM dd, yyyy')}
                   </td>
                   <td className="px-4 py-3 text-sm font-semibold text-green-600">
-                    ${parseFloat(order.total_price).toFixed(2)}
+                    ₹{parseFloat(order.total_price).toFixed(2)}
                   </td>
                   <td className="px-4 py-3">
                     <span className={`inline-flex px-2 py-1 text-xs font-medium rounded ${getStatusColor(order.financial_status)}`}>

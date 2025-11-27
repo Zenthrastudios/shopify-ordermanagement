@@ -145,11 +145,11 @@ export function CustomerAnalytics() {
                     <div className="text-sm text-gray-500">{customer.email}</div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-green-600">
-                    ${customer.totalSpent.toFixed(2)}
+                    ₹{customer.totalSpent.toFixed(2)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{customer.totalOrders}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    ${(customer.totalSpent / customer.totalOrders).toFixed(2)}
+                    ₹{(customer.totalSpent / customer.totalOrders).toFixed(2)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{customer.lastPurchaseDate}</td>
                 </tr>

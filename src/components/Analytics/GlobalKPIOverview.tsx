@@ -70,14 +70,14 @@ export function GlobalKPIOverview() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <KPICard
           title="Total Revenue"
-          value={`$${kpis.totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+          value={`₹${kpis.totalRevenue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
           icon={<DollarSign className="w-6 h-6" />}
         />
         <KPICard
           title="Net Revenue"
-          value={`$${kpis.netRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+          value={`₹${kpis.netRevenue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
           icon={<DollarSign className="w-6 h-6" />}
-          subtitle={`Refunds: $${kpis.refundAmount.toFixed(2)}`}
+          subtitle={`Refunds: ₹${kpis.refundAmount.toFixed(2)}`}
         />
         <KPICard
           title="Total Orders"
@@ -91,7 +91,7 @@ export function GlobalKPIOverview() {
         />
         <KPICard
           title="Average Order Value"
-          value={`$${kpis.averageOrderValue.toFixed(2)}`}
+          value={`₹${kpis.averageOrderValue.toFixed(2)}`}
           icon={<DollarSign className="w-6 h-6" />}
         />
         <KPICard
