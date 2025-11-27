@@ -9,7 +9,8 @@ export async function fetchOrders(filters: OrderFilters = {}): Promise<OrderWith
       items:order_items(*),
       tracking:tracking_numbers(*)
     `)
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: false })
+    .limit(500);
 
   if (filters.search) {
     query = query.or(`order_number.eq.${filters.search},email.ilike.%${filters.search}%,customer_name.ilike.%${filters.search}%`);
@@ -206,23 +207,26 @@ function generateTrackingUrl(company: string, trackingNumber: string): string {
 }
 
 export async function getOrderStats() {
-  const { data: orders } = await supabase
-    .from('orders')
-    .select('financial_status, fulfillment_status, total_price');
+  const { data } = await supabase
+    .from('order_stats')
+    .select('*')
+    .maybeSingle();
 
-  if (!orders) return null;
-
-  const totalOrders = orders.length;
-  const paidOrders = orders.filter(o => o.financial_status === 'paid').length;
-  const fulfilledOrders = orders.filter(o => o.fulfillment_status === 'fulfilled').length;
-  const unfulfilledOrders = orders.filter(o => !o.fulfillment_status || o.fulfillment_status === 'unfulfilled').length;
-  const totalRevenue = orders.reduce((sum, o) => sum + (o.total_price || 0), 0);
+  if (!data) {
+    return {
+      totalOrders: 0,
+      paidOrders: 0,
+      fulfilledOrders: 0,
+      unfulfilledOrders: 0,
+      totalRevenue: 0,
+    };
+  }
 
   return {
-    totalOrders,
-    paidOrders,
-    fulfilledOrders,
-    unfulfilledOrders,
-    totalRevenue,
+    totalOrders: data.total_orders,
+    paidOrders: data.paid_orders,
+    fulfilledOrders: data.fulfilled_orders,
+    unfulfilledOrders: data.unfulfilled_orders,
+    totalRevenue: parseFloat(data.total_revenue),
   };
 }

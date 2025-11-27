@@ -146,35 +146,35 @@ export const analyticsService = {
     const activeThreshold = subDays(new Date(), activeDays);
     const churnThreshold = subDays(new Date(), churnDays);
 
-    const { data: allOrders } = await supabase
-      .from('orders')
-      .select('email, created_at')
-      .order('created_at', { ascending: false });
+    const { data: aggregates } = await supabase
+      .from('customer_aggregates')
+      .select('email, first_purchase_date, last_purchase_date');
 
-    const customerFirstOrder = new Map<string, Date>();
-    const customerLastOrder = new Map<string, Date>();
+    if (!aggregates) {
+      return {
+        totalCustomers: 0,
+        newCustomers: 0,
+        returningCustomers: 0,
+        activeCustomers: 0,
+        churnedCustomers: 0,
+      };
+    }
 
-    allOrders?.forEach(order => {
-      const email = order.email;
-      const orderDate = parseISO(order.created_at);
+    const totalCustomers = aggregates.length;
+    const newCustomers = aggregates.filter(c => {
+      const firstOrder = parseISO(c.first_purchase_date);
+      return firstOrder >= startDate && firstOrder <= endDate;
+    }).length;
 
-      if (!customerFirstOrder.has(email) || orderDate < customerFirstOrder.get(email)!) {
-        customerFirstOrder.set(email, orderDate);
-      }
-      if (!customerLastOrder.has(email) || orderDate > customerLastOrder.get(email)!) {
-        customerLastOrder.set(email, orderDate);
-      }
-    });
+    const activeCustomers = aggregates.filter(c => {
+      const lastOrder = parseISO(c.last_purchase_date);
+      return lastOrder >= activeThreshold;
+    }).length;
 
-    const totalCustomers = customerFirstOrder.size;
-    const newCustomers = Array.from(customerFirstOrder.entries())
-      .filter(([_, firstOrder]) => firstOrder >= startDate && firstOrder <= endDate).length;
-
-    const activeCustomers = Array.from(customerLastOrder.entries())
-      .filter(([_, lastOrder]) => lastOrder >= activeThreshold).length;
-
-    const churnedCustomers = Array.from(customerLastOrder.entries())
-      .filter(([_, lastOrder]) => lastOrder < churnThreshold).length;
+    const churnedCustomers = aggregates.filter(c => {
+      const lastOrder = parseISO(c.last_purchase_date);
+      return lastOrder < churnThreshold;
+    }).length;
 
     const returningCustomers = totalCustomers - newCustomers;
 
@@ -188,53 +188,25 @@ export const analyticsService = {
   },
 
   async getTopCustomers(limit = 50): Promise<TopCustomer[]> {
-    const { data: orders } = await supabase
-      .from('orders')
-      .select('email, customer_name, total_price, created_at')
-      .order('created_at', { ascending: false });
+    const { data } = await supabase
+      .from('customer_aggregates')
+      .select('*')
+      .order('total_spent', { ascending: false })
+      .limit(limit);
 
-    const customerData = new Map<string, {
-      name: string;
-      totalSpent: number;
-      totalOrders: number;
-      firstPurchase: Date;
-      lastPurchase: Date;
-    }>();
+    if (!data || data.length === 0) {
+      return [];
+    }
 
-    orders?.forEach(order => {
-      const email = order.email;
-      const existing = customerData.get(email);
-      const orderDate = parseISO(order.created_at);
-      const amount = parseFloat(order.total_price || '0');
-
-      if (!existing) {
-        customerData.set(email, {
-          name: order.customer_name || email,
-          totalSpent: amount,
-          totalOrders: 1,
-          firstPurchase: orderDate,
-          lastPurchase: orderDate,
-        });
-      } else {
-        existing.totalSpent += amount;
-        existing.totalOrders += 1;
-        if (orderDate < existing.firstPurchase) existing.firstPurchase = orderDate;
-        if (orderDate > existing.lastPurchase) existing.lastPurchase = orderDate;
-      }
-    });
-
-    return Array.from(customerData.entries())
-      .map(([email, data]) => ({
-        email,
-        name: data.name,
-        totalSpent: data.totalSpent,
-        totalOrders: data.totalOrders,
-        lifetimeValue: data.totalSpent,
-        lastPurchaseDate: format(data.lastPurchase, 'yyyy-MM-dd'),
-        firstPurchaseDate: format(data.firstPurchase, 'yyyy-MM-dd'),
-      }))
-      .sort((a, b) => b.totalSpent - a.totalSpent)
-      .slice(0, limit);
+    return data.map(row => ({
+      email: row.email,
+      name: row.customer_name || row.email,
+      totalSpent: parseFloat(row.total_spent),
+      totalOrders: row.total_orders,
+      lifetimeValue: parseFloat(row.total_spent),
+      lastPurchaseDate: row.last_purchase_date,
+      firstPurchaseDate: row.first_purchase_date,
+    }));
   },
 
   async calculateRFMScores(): Promise<RFMScore[]> {
