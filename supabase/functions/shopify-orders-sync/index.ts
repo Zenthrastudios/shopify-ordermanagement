@@ -35,33 +35,40 @@ Deno.serve(async (req: Request) => {
       'Content-Type': 'application/json',
     };
 
-    const shopifyUrl = `https://${store.shop_domain}/admin/api/${store.api_version}/orders.json`;
-    
-    let allOrders: any[] = [];
-    let page = 1;
-    let hasMore = true;
+    const baseUrl = `https://${store.shop_domain}/admin/api/${store.api_version}/orders.json`;
 
-    while (hasMore && page <= 5) {
-      const response = await fetch(
-        `${shopifyUrl}?status=any&limit=250&page=${page}`,
-        { headers: shopifyHeaders }
-      );
+    let allOrders: any[] = [];
+    let url = `${baseUrl}?status=any&limit=250`;
+    let pageCount = 0;
+
+    while (url && pageCount < 5) {
+      const response = await fetch(url, { headers: shopifyHeaders });
 
       if (!response.ok) {
-        throw new Error(`Shopify API error: ${response.statusText}`);
+        const errorText = await response.text();
+        console.error('Shopify API error:', response.status, errorText);
+        throw new Error(`Shopify API error: ${response.status} ${response.statusText}`);
       }
 
-      const { orders } = await response.json();
+      const data = await response.json();
+      const orders = data.orders || [];
       allOrders = allOrders.concat(orders);
-      
-      if (orders.length < 250) {
-        hasMore = false;
-      } else {
-        page++;
+
+      const linkHeader = response.headers.get('Link');
+      url = '';
+
+      if (linkHeader) {
+        const nextMatch = linkHeader.match(/<([^>]+)>;\s*rel="next"/);
+        if (nextMatch) {
+          url = nextMatch[1];
+        }
       }
+
+      pageCount++;
     }
 
-    let synced = 0;
+    console.log(`Fetched ${allOrders.length} orders from Shopify`);
+
     let updated = 0;
     let errors = 0;
 
@@ -70,14 +77,14 @@ Deno.serve(async (req: Request) => {
         const { data: existingOrder } = await supabase
           .from('orders')
           .select('id, fulfillment_status')
-          .eq('shopify_order_id', order.id)
+          .eq('shopify_order_id', order.id.toString())
           .maybeSingle();
 
         if (existingOrder) {
           const shopifyFulfillmentStatus = order.fulfillment_status || 'unfulfilled';
-          
+
           if (existingOrder.fulfillment_status !== shopifyFulfillmentStatus) {
-            await supabase
+            const { error: updateError } = await supabase
               .from('orders')
               .update({
                 fulfillment_status: shopifyFulfillmentStatus,
@@ -86,14 +93,17 @@ Deno.serve(async (req: Request) => {
                 updated_at: new Date().toISOString(),
               })
               .eq('id', existingOrder.id);
-            
-            updated++;
+
+            if (updateError) {
+              console.error(`Error updating order ${order.id}:`, updateError);
+              errors++;
+            } else {
+              updated++;
+            }
           }
-        } else {
-          synced++;
         }
       } catch (error) {
-        console.error(`Error syncing order ${order.id}:`, error);
+        console.error(`Error processing order ${order.id}:`, error);
         errors++;
       }
     }
@@ -103,13 +113,12 @@ Deno.serve(async (req: Request) => {
         success: true,
         total: allOrders.length,
         updated,
-        synced,
         errors,
-        message: `Updated ${updated} orders, ${synced} new orders found`
+        message: `Synced ${allOrders.length} orders. Updated ${updated} orders.`
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error:', error);
     return new Response(
       JSON.stringify({ error: error.message || 'Internal server error' }),
