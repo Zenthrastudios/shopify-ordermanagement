@@ -148,20 +148,39 @@ class ProductsService {
   }
 
   async getProductById(id: string): Promise<ProductWithDetails | null> {
-    const { data: product, error } = await supabase
+    const { data: product, error: productError } = await supabase
       .from('products')
       .select('*')
       .eq('id', id)
       .maybeSingle();
 
-    if (error) throw error;
+    if (productError) {
+      console.error('Error fetching product:', productError);
+      throw productError;
+    }
     if (!product) return null;
 
-    const { data: variants } = await supabase
+    const { data: variants, error: variantsError } = await supabase
       .from('product_variants')
-      .select('*, inventory_items(*)')
+      .select('*')
       .eq('product_id', id)
       .order('position');
+
+    if (variantsError) {
+      console.error('Error fetching variants:', variantsError);
+      throw variantsError;
+    }
+
+    const variantIds = (variants || []).map(v => v.id);
+
+    const { data: inventoryItems, error: inventoryError } = await supabase
+      .from('inventory_items')
+      .select('*')
+      .in('variant_id', variantIds);
+
+    if (inventoryError) {
+      console.error('Error fetching inventory:', inventoryError);
+    }
 
     const { data: images } = await supabase
       .from('product_images')
@@ -171,15 +190,15 @@ class ProductsService {
 
     const variantsWithInventory = (variants || []).map(v => ({
       ...v,
-      inventory: v.inventory_items || []
+      inventory: (inventoryItems || []).filter(inv => inv.variant_id === v.id)
     }));
 
     const totalInventory = variantsWithInventory.reduce((sum, v) =>
-      sum + v.inventory.reduce((s, i) => s + i.available, 0), 0
+      sum + v.inventory.reduce((s, i) => s + (i.available || 0), 0), 0
     );
 
     const availableToSell = variantsWithInventory.reduce((sum, v) =>
-      sum + v.inventory.reduce((s, i) => s + (i.available - i.committed), 0), 0
+      sum + v.inventory.reduce((s, i) => s + ((i.available || 0) - (i.committed || 0)), 0), 0
     );
 
     return {
@@ -278,12 +297,17 @@ class ProductsService {
       notes?: string;
     }
   ): Promise<void> {
-    const { data: current } = await supabase
+    const { data: current, error: fetchError } = await supabase
       .from('inventory_items')
-      .select('available')
+      .select('*')
       .eq('variant_id', variantId)
       .eq('location_id', locationId)
       .maybeSingle();
+
+    if (fetchError) {
+      console.error('Error fetching inventory:', fetchError);
+      throw new Error('Failed to fetch inventory item');
+    }
 
     const quantityBefore = current?.available || 0;
     const quantityAfter = quantityBefore + adjustment.quantity_change;
@@ -292,16 +316,43 @@ class ProductsService {
       throw new Error('Insufficient inventory');
     }
 
-    await supabase
-      .from('inventory_items')
-      .upsert({
-        variant_id: variantId,
-        location_id: locationId,
-        available: quantityAfter,
-        updated_at: new Date().toISOString(),
-      });
+    if (current) {
+      const { error: updateError } = await supabase
+        .from('inventory_items')
+        .update({
+          available: quantityAfter,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', current.id);
 
-    await supabase
+      if (updateError) {
+        console.error('Error updating inventory:', updateError);
+        throw new Error('Failed to update inventory');
+      }
+    } else {
+      const { error: insertError } = await supabase
+        .from('inventory_items')
+        .insert({
+          variant_id: variantId,
+          location_id: locationId,
+          available: quantityAfter,
+          committed: 0,
+          damaged: 0,
+          in_transit: 0,
+          reserved: 0,
+          reorder_point: 10,
+          reorder_quantity: 50,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        });
+
+      if (insertError) {
+        console.error('Error inserting inventory:', insertError);
+        throw new Error('Failed to create inventory item');
+      }
+    }
+
+    const { error: adjustmentError } = await supabase
       .from('inventory_adjustments')
       .insert({
         variant_id: variantId,
@@ -313,6 +364,10 @@ class ProductsService {
         reason: adjustment.reason,
         notes: adjustment.notes,
       });
+
+    if (adjustmentError) {
+      console.error('Error recording adjustment:', adjustmentError);
+    }
   }
 
   async getLocations(): Promise<InventoryLocation[]> {
