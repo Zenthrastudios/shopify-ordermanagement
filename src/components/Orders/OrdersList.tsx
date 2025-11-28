@@ -6,6 +6,7 @@ import OrderFiltersPanel from './OrderFiltersPanel';
 import BulkActionsBar from './BulkActionsBar';
 import PrintPreview from '../Print/PrintPreview';
 import AnalyticsCards from './AnalyticsCards';
+import { supabase } from '../../lib/supabase';
 
 interface OrdersListProps {
   onOrderSelect: (orderId: string) => void;
@@ -14,6 +15,7 @@ interface OrdersListProps {
 export default function OrdersList({ onOrderSelect }: OrdersListProps) {
   const [orders, setOrders] = useState<OrderWithItems[]>([]);
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
   const [selectedOrders, setSelectedOrders] = useState<Set<string>>(new Set());
   const [searchTerm, setSearchTerm] = useState('');
   const [showFilters, setShowFilters] = useState(false);
@@ -33,6 +35,37 @@ export default function OrdersList({ onOrderSelect }: OrdersListProps) {
       console.error('Error loading orders:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const syncFromShopify = async () => {
+    setSyncing(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token || import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/shopify-orders-sync`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to sync orders');
+      }
+
+      const result = await response.json();
+      alert(`Successfully synced! Updated ${result.updated} orders from Shopify.`);
+      await loadOrders();
+    } catch (error: any) {
+      alert(error.message || 'Failed to sync from Shopify');
+    } finally {
+      setSyncing(false);
     }
   };
 
@@ -81,6 +114,14 @@ export default function OrdersList({ onOrderSelect }: OrdersListProps) {
             <p className="text-xs lg:text-sm text-gray-500 mt-1">{orders.length} total orders</p>
           </div>
           <div className="flex gap-2 lg:gap-3">
+            <button
+              onClick={syncFromShopify}
+              disabled={syncing}
+              className="px-3 lg:px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 text-sm disabled:opacity-50"
+            >
+              <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">{syncing ? 'Syncing...' : 'Sync Shopify'}</span>
+            </button>
             <button
               onClick={loadOrders}
               disabled={loading}
