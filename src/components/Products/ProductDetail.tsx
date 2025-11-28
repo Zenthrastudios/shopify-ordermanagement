@@ -44,10 +44,47 @@ export function ProductDetail({ productId, onBack, onUpdated }: ProductDetailPro
     }
   };
 
-  if (loading || !product) {
+  if (loading) {
     return (
-      <div className="bg-white rounded-lg shadow p-6">
-        <div className="animate-pulse h-96 bg-gray-100 rounded" />
+      <div className="space-y-6">
+        <div className="flex items-center gap-4">
+          <button
+            onClick={onBack}
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          <div className="animate-pulse h-8 bg-gray-200 rounded w-64" />
+        </div>
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="animate-pulse h-96 bg-gray-100 rounded" />
+        </div>
+      </div>
+    );
+  }
+
+  if (!product) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center gap-4">
+          <button
+            onClick={onBack}
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          <h1 className="text-2xl font-bold text-gray-900">Product Not Found</h1>
+        </div>
+        <div className="bg-white rounded-lg shadow p-12 text-center">
+          <Package className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+          <p className="text-gray-500">This product could not be found.</p>
+          <button
+            onClick={onBack}
+            className="mt-4 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          >
+            Back to Products
+          </button>
+        </div>
       </div>
     );
   }

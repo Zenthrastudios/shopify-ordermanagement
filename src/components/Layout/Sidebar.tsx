@@ -9,12 +9,9 @@ interface SidebarProps {
 
 export default function Sidebar({ currentView, onViewChange, isOpen, onClose }: SidebarProps) {
   const menuItems = [
-    { id: 'home', label: 'Home', icon: Home },
     { id: 'orders', label: 'Orders', icon: ShoppingCart, badge: null },
-    { id: 'customers', label: 'Customers', icon: Users },
     { id: 'products', label: 'Products', icon: Package },
     { id: 'analytics', label: 'Analytics', icon: BarChart3 },
-    { id: 'apps', label: 'Apps', icon: AppWindow },
   ];
 
   const handleNavClick = (view: string) => {

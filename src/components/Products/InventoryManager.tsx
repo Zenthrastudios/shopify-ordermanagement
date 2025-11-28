@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { ArrowLeft, Plus, Minus, RefreshCw, Package, AlertTriangle, Search, Download } from 'lucide-react';
+import { ArrowLeft, Plus, Minus, RefreshCw, Package, AlertTriangle, Search, Download, Edit } from 'lucide-react';
 import { productsService, ProductInventorySummary, InventoryLocation } from '../../services/productsService';
 import { supabase } from '../../lib/supabase';
+import { InventoryAdjustmentModal } from './InventoryAdjustmentModal';
 
 interface InventoryManagerProps {
   onBack: () => void;
@@ -15,6 +16,7 @@ export function InventoryManager({ onBack }: InventoryManagerProps) {
   const [syncing, setSyncing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [stockFilter, setStockFilter] = useState<'all' | 'low' | 'out'>('all');
+  const [selectedProduct, setSelectedProduct] = useState<ProductInventorySummary | null>(null);
 
   useEffect(() => {
     loadData();
@@ -117,8 +119,21 @@ export function InventoryManager({ onBack }: InventoryManagerProps) {
   const outOfStockCount = products.filter(p => p.available_to_sell === 0).length;
   const totalValue = products.reduce((sum, p) => sum + (p.price * p.available_to_sell), 0);
 
+  const defaultLocation = locations.find(l => l.is_default) || locations[0];
+
   return (
     <div className="space-y-6">
+      {selectedProduct && defaultLocation && (
+        <InventoryAdjustmentModal
+          product={selectedProduct}
+          locationId={defaultLocation.id}
+          onClose={() => setSelectedProduct(null)}
+          onSuccess={() => {
+            loadData();
+            setSelectedProduct(null);
+          }}
+        />
+      )}
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
@@ -339,21 +354,35 @@ export function InventoryManager({ onBack }: InventoryManagerProps) {
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-2">
                           <button
-                            onClick={() => handleStockChange(product, product.total_available + 10)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleStockChange(product, product.total_available + 10);
+                            }}
                             className="p-2 text-green-600 bg-green-50 hover:bg-green-100 rounded-lg transition-colors"
-                            title="Add 10"
+                            title="Quick add 10"
                           >
                             <Plus className="w-4 h-4" />
-                            <span className="text-xs font-medium ml-1">10</span>
                           </button>
                           <button
-                            onClick={() => handleStockChange(product, product.total_available - 1)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleStockChange(product, product.total_available - 1);
+                            }}
                             className="p-2 text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
-                            title="Remove 1"
+                            title="Quick remove 1"
                             disabled={product.total_available === 0}
                           >
                             <Minus className="w-4 h-4" />
-                            <span className="text-xs font-medium ml-1">1</span>
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedProduct(product);
+                            }}
+                            className="p-2 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
+                            title="Advanced adjustment"
+                          >
+                            <Edit className="w-4 h-4" />
                           </button>
                         </div>
                       </td>
