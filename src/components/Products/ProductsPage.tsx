@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Package, Plus, Search, Filter, AlertTriangle } from 'lucide-react';
+import { Package, Plus, Search, Filter, AlertTriangle, RefreshCw } from 'lucide-react';
 import { productsService, ProductInventorySummary } from '../../services/productsService';
 import { ProductCreator } from './ProductCreator';
 import { ProductDetail } from './ProductDetail';
 import { InventoryManager } from './InventoryManager';
+import { supabase } from '../../lib/supabase';
 
 type ViewMode = 'list' | 'create' | 'detail' | 'inventory';
 
@@ -13,6 +14,7 @@ export function ProductsPage() {
   const [filteredProducts, setFilteredProducts] = useState<ProductInventorySummary[]>([]);
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [lowStockOnly, setLowStockOnly] = useState(false);
@@ -34,6 +36,37 @@ export function ProductsPage() {
       console.error('Error loading products:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const syncFromShopify = async () => {
+    setSyncing(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token || import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/shopify-products-sync`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to sync products');
+      }
+
+      const result = await response.json();
+      alert(`Successfully synced! ${result.synced} products synced with inventory levels from Shopify.`);
+      await loadProducts();
+    } catch (error: any) {
+      alert(error.message || 'Failed to sync from Shopify');
+    } finally {
+      setSyncing(false);
     }
   };
 
@@ -100,6 +133,14 @@ export function ProductsPage() {
         <h1 className="text-2xl font-bold text-gray-900">Products & Inventory</h1>
         <div className="flex gap-3">
           <button
+            onClick={syncFromShopify}
+            disabled={syncing}
+            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 disabled:opacity-50"
+          >
+            <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
+            {syncing ? 'Syncing...' : 'Sync Shopify'}
+          </button>
+          <button
             onClick={() => setViewMode('inventory')}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
           >
@@ -108,7 +149,7 @@ export function ProductsPage() {
           </button>
           <button
             onClick={() => setViewMode('create')}
-            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
+            className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors flex items-center gap-2"
           >
             <Plus className="w-4 h-4" />
             Create Product

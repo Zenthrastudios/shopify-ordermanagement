@@ -32,6 +32,7 @@ interface ShopifyVariant {
   weight_unit: string;
   inventory_quantity: number;
   inventory_item_id: number;
+  inventory_management: string;
   position: number;
   option1: string;
   option2: string;
@@ -47,6 +48,12 @@ interface ShopifyImage {
   width: number;
   height: number;
   variant_ids: number[];
+}
+
+interface ShopifyInventoryLevel {
+  inventory_item_id: number;
+  location_id: number;
+  available: number;
 }
 
 Deno.serve(async (req: Request) => {
@@ -76,26 +83,49 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const shopifyUrl = `https://${store.shop_domain}/admin/api/${store.api_version}/products.json`;
     const shopifyHeaders = {
       'X-Shopify-Access-Token': store.access_token,
       'Content-Type': 'application/json',
     };
 
-    const shopifyResponse = await fetch(`${shopifyUrl}?limit=250`, {
-      headers: shopifyHeaders,
-    });
+    const baseUrl = `https://${store.shop_domain}/admin/api/${store.api_version}`;
 
-    if (!shopifyResponse.ok) {
-      throw new Error(`Shopify API error: ${shopifyResponse.statusText}`);
+    let allProducts: ShopifyProduct[] = [];
+    let url = `${baseUrl}/products.json?limit=250`;
+    let pageCount = 0;
+
+    while (url && pageCount < 10) {
+      const response = await fetch(url, { headers: shopifyHeaders });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Shopify API error:', response.status, errorText);
+        throw new Error(`Shopify API error: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      const products = data.products || [];
+      allProducts = allProducts.concat(products);
+
+      const linkHeader = response.headers.get('Link');
+      url = '';
+
+      if (linkHeader) {
+        const nextMatch = linkHeader.match(/<([^>]+)>;\s*rel="next"/);
+        if (nextMatch) {
+          url = nextMatch[1];
+        }
+      }
+
+      pageCount++;
     }
 
-    const { products } = await shopifyResponse.json();
+    console.log(`Fetched ${allProducts.length} products from Shopify`);
 
     let synced = 0;
     let errors = 0;
 
-    for (const product of products as ShopifyProduct[]) {
+    for (const product of allProducts) {
       try {
         const { data: existingProduct } = await supabase
           .from('products')
@@ -129,7 +159,7 @@ Deno.serve(async (req: Request) => {
         } else {
           const { data } = await supabase
             .from('products')
-            .insert(productData)
+            .insert({ ...productData, created_at: new Date().toISOString() })
             .select('id')
             .single();
           productId = data.id;
@@ -145,14 +175,17 @@ Deno.serve(async (req: Request) => {
           const variantData = {
             shopify_variant_id: variant.id,
             product_id: productId,
-            title: variant.title,
-            sku: variant.sku,
+            title: variant.title || 'Default',
+            sku: variant.sku || `SKU-${variant.id}`,
             barcode: variant.barcode,
             price: parseFloat(variant.price),
             compare_at_price: variant.compare_at_price ? parseFloat(variant.compare_at_price) : null,
             weight: variant.weight,
-            weight_unit: variant.weight_unit,
-            position: variant.position,
+            weight_unit: variant.weight_unit || 'kg',
+            inventory_policy: 'deny',
+            requires_shipping: true,
+            taxable: true,
+            position: variant.position || 0,
             option1: variant.option1,
             option2: variant.option2,
             option3: variant.option3,
@@ -172,10 +205,32 @@ Deno.serve(async (req: Request) => {
           } else {
             const { data } = await supabase
               .from('product_variants')
-              .insert(variantData)
+              .insert({ ...variantData, created_at: new Date().toISOString() })
               .select('id')
               .single();
             variantId = data.id;
+          }
+
+          let inventoryQuantity = 0;
+
+          if (variant.inventory_item_id && variant.inventory_management === 'shopify') {
+            try {
+              const invResponse = await fetch(
+                `${baseUrl}/inventory_levels.json?inventory_item_ids=${variant.inventory_item_id}`,
+                { headers: shopifyHeaders }
+              );
+
+              if (invResponse.ok) {
+                const invData = await invResponse.json();
+                const levels = invData.inventory_levels as ShopifyInventoryLevel[];
+
+                if (levels && levels.length > 0) {
+                  inventoryQuantity = levels.reduce((sum, level) => sum + (level.available || 0), 0);
+                }
+              }
+            } catch (invError) {
+              console.error(`Error fetching inventory for variant ${variant.id}:`, invError);
+            }
           }
 
           const { data: defaultLocation } = await supabase
@@ -185,16 +240,38 @@ Deno.serve(async (req: Request) => {
             .maybeSingle();
 
           if (defaultLocation) {
-            await supabase
+            const { data: existingInv } = await supabase
               .from('inventory_items')
-              .upsert({
-                variant_id: variantId,
-                location_id: defaultLocation.id,
-                available: variant.inventory_quantity || 0,
-                updated_at: new Date().toISOString(),
-              }, {
-                onConflict: 'variant_id,location_id'
-              });
+              .select('id')
+              .eq('variant_id', variantId)
+              .eq('location_id', defaultLocation.id)
+              .maybeSingle();
+
+            if (existingInv) {
+              await supabase
+                .from('inventory_items')
+                .update({
+                  available: inventoryQuantity,
+                  updated_at: new Date().toISOString(),
+                })
+                .eq('id', existingInv.id);
+            } else {
+              await supabase
+                .from('inventory_items')
+                .insert({
+                  variant_id: variantId,
+                  location_id: defaultLocation.id,
+                  available: inventoryQuantity,
+                  committed: 0,
+                  damaged: 0,
+                  in_transit: 0,
+                  reserved: 0,
+                  reorder_point: 10,
+                  reorder_quantity: 50,
+                  created_at: new Date().toISOString(),
+                  updated_at: new Date().toISOString(),
+                });
+            }
           }
         }
 
@@ -239,7 +316,8 @@ Deno.serve(async (req: Request) => {
         success: true,
         synced,
         errors,
-        total: products.length,
+        total: allProducts.length,
+        message: `Synced ${synced} products with inventory levels from Shopify.`
       }),
       {
         headers: {
@@ -248,7 +326,7 @@ Deno.serve(async (req: Request) => {
         },
       }
     );
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error:', error);
     return new Response(
       JSON.stringify({
